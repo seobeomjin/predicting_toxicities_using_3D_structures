@@ -267,6 +267,9 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
                                shape=(None, isize, isize, isize, in_chnls),
                                name='structure')
             t = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity')
+            #t1 = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity1')
+            #t2 = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity2')
+            #######
           
         with tf.variable_scope('convolution'):
             h_convs = convolve3D(x, conv_channels,
@@ -277,7 +280,7 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
             hfsize = ceil(hfsize / pool_patch)
         hfsize = conv_channels[-1] * hfsize**3
 
-        with tf.variable_scope('fully_connected'):
+        with tf.variable_scope('fully_connected') as scope: ## reuse=True set 
             h_flat = tf.reshape(h_convs, shape=(-1, hfsize), name='h_flat')
 
             prob1 = tf.constant(1.0, name='keep_prob_default')
@@ -285,6 +288,8 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
                                                     name='keep_prob')
 
             h_fcl1 = feedforward(h_flat, dense_sizes, keep_prob=keep_prob)
+            # reuse set
+            scope.reuse_variables()
             h_fcl2 = feedforward(h_flat, dense_sizes, keep_prob=keep_prob)
 
         with tf.variable_scope('output'):
@@ -311,8 +316,8 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
 
             #mse = tf.reduce_mean(tf.pow((y - t), 2), name='mse')
 
-            mse1 = tf.reduce_mean(tf.pow((y1 - t1),2),name='mse1')
-            mse2 = tf.reduce_mean(tf.pow((y2 - t2),2),name='mse2')
+            mse1 = tf.reduce_mean(tf.pow((y1 - t),2),name='mse1')
+            mse2 = tf.reduce_mean(tf.pow((y2 - t),2),name='mse2')
 
             with tf.variable_scope('L2_cost'): #== acthung ==#
                 # sum over all weights
@@ -345,6 +350,8 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
     graph.add_to_collection('input', x)
     graph.add_to_collection('target', t)
     graph.add_to_collection('kp', keep_prob)
+    #graph.add_to_collection('target1', t1)
+    #graph.add_to_collection('target2', t2)
 
     return graph
 

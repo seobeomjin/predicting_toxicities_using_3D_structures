@@ -127,7 +127,7 @@ for dictionary in [splitted_ids, splitted_toxicity, splitted_coords, splitted_fe
         dictionary[splitted_dataset_name] = []
 
 for dataset_name in datasets:
-    dataset_path = os.path.join(input_dir, '%s_set.hdf' % dataset_name)
+    dataset_path = os.path.join(args.input_dir, '%s_set.hdf' % dataset_name)
     with h5py.File(dataset_path, 'r') as f:
         for pdb_id in f: #pdb_id  >>> androgenSDF0
             dataset = f[pdb_id]
@@ -198,7 +198,7 @@ def get_batch_2(dataset_name, indices, rotation=0):
 
 print('\n---- DATA ----\n')
 
-tmp = get_batch_1('training1', range(min(50, len(spitted_features['training1']))))
+tmp = get_batch_1('training1', range(min(50, len(splitted_features['training1']))))
 
 assert ((tmp[:, :, :, :, columns['molcode']] == 0.0).any()
         and (tmp[:, :, :, :, columns['molcode']] == 1.0).any()
@@ -292,6 +292,8 @@ t = graph.get_tensor_by_name('input/toxicity:0')
 y1 = graph.get_tensor_by_name('output/prediction1:0')
 y2 = graph.get_tensor_by_name('output/prediction2:0')
 keep_prob = graph.get_tensor_by_name('fully_connected/keep_prob:0')
+#t1 = graph.get_tensor_by_name('input/toxicity1:0')
+#t2 = graph.get_tensor_by_name('input/toxicity2:0')
 
 train1 = graph.get_tensor_by_name('training/train1:0')  
 train2 = graph.get_tensor_by_name('training/train2:0')  
