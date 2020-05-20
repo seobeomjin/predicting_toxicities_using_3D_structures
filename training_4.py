@@ -480,8 +480,10 @@ with tf.Session(graph=graph) as session:
 
         # predictions distribution
         summary_pred = tf.Summary()
-        summary_pred.value.add(tag='predictions_all',
-                               histo=net.custom_summary_histogram(pred_t))
+        summary_pred.value.add(tag='predictions_1',
+                               histo=net.custom_summary_histogram(pred_t1))
+        summary_pred.value.add(tag='predictions_2',
+                               histo=net.custom_summary_histogram(pred_t2))
         train_writer.add_summary(summary_pred, global_step.eval())
 
         # validation set error
@@ -549,42 +551,43 @@ with tf.Session(graph=graph) as session:
     saver.restore(session, os.path.abspath(checkpoint))
     saver.save(session, prefix + '-best')
 
-    for dataset in splitted_datasets: 
+    for dataset in datasets: 
         pred1 = np.zeros((ds_sizes[dataset+str(1)], 1))
         pred2 = np.zeros((ds_sizes[dataset+str(2)], 1))
-        mse_dataset = 0.0
+        mse_dataset_1 = 0.0
+        mse_dataset_2 = 0.0 
 
         for bi, bj in batches(dataset+str(1)):
-            weight = (bj - bi) / ds_sizes[dataset+str(1)]
-            pred[bi:bj], mse_batch = session.run(
+            weight_1 = (bj - bi) / ds_sizes[dataset+str(1)]
+            pred1[bi:bj], mse_batch_1 = session.run(
                 [y1, mse1],
                 feed_dict={x: get_batch_1(dataset+str(1), range(bi, bj)),
                            t: splitted_toxicity[dataset+str(1)][bi:bj],
                            keep_prob: 1.0}
             )
-            mse_dataset += weight * mse_batch
+            mse_dataset_1 += weight_1 * mse_batch_1
 
         predictions.append(pd.DataFrame(data={'pdbid': splitted_ids[dataset+str(1)],
                                               'real': splitted_toxicity[dataset+str(1)][:, 0],
                                               'predicted': pred1[:, 0],
                                               'set': dataset+str(1)}))
-        rmse[dataset+str(1)] = sqrt(mse_dataset)
+        rmse[dataset+str(1)] = sqrt(mse_dataset_1)
 
         for bi, bj in batches(dataset+str(2)):
-            weight = (bj - bi) / ds_sizes[dataset+str(2)]
-            pred[bi:bj], mse_batch = session.run(
+            weight_2 = (bj - bi) / ds_sizes[dataset+str(2)]
+            pred2[bi:bj], mse_batch_2 = session.run(
                 [y2, mse2],
                 feed_dict={x: get_batch_2(dataset+str(2), range(bi, bj)),
                            t: splitted_toxicity[dataset+str(2)][bi:bj],
                            keep_prob: 1.0}
             )
-            mse_dataset += weight * mse_batch
+            mse_dataset_2 += weight_2 * mse_batch_2
 
         predictions.append(pd.DataFrame(data={'pdbid': splitted_ids[dataset+str(2)],
                                               'real': splitted_toxicity[dataset+str(2)][:, 0],
                                               'predicted': pred2[:, 0],
                                               'set': dataset+str(2)}))
-        rmse[dataset+str(2)] = sqrt(mse_dataset)
+        rmse[dataset+str(2)] = sqrt(mse_dataset_2)
 
 
 predictions = pd.concat(predictions, ignore_index=True)
