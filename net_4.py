@@ -266,10 +266,8 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
             x = tf.placeholder(tf.float32,
                                shape=(None, isize, isize, isize, in_chnls),
                                name='structure')
-            #t = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity')
-            t1 = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity1')
-            t2 = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity2')
-
+            t = tf.placeholder(tf.float32, shape=(None, osize), name='toxicity')
+          
         with tf.variable_scope('convolution'):
             h_convs = convolve3D(x, conv_channels,
                                  conv_patch=conv_patch,
@@ -329,35 +327,24 @@ def make_SB_network(isize=20, in_chnls=19, osize=1,
                 l2 = lmbda * tf.reduce_sum([tf.reduce_sum(tf.pow(wi, 2))
                                             for wi in all_weights])
 
-            #cost = tf.add(mse, l2, name='cost')
+            
             cost1 = tf.add(mse1, l2, name='cost1')
             cost2 = tf.add(mse2, l2, name='cost2')
 
-
             optimizer = tf.train.AdamOptimizer(learning_rate, name='optimizer')
-            ################ key point 
             train1 = optimizer.minimize(cost1, global_step=global_step,name='train1')
             train2 = optimizer.minimize(cost2, global_step=global_step,name='train2')
 
-            #train = optimizer.minimize(cost, global_step=global_step, name='train')
-            ################
 
-    #################### acthung ####################
+    #################### ====== ####################
     # add_to_collection(name, value)
     # Stores value in the collection with the given name.
 
     graph.add_to_collection('output1', y1)
     graph.add_to_collection('output2', y2)
     graph.add_to_collection('input', x)
-    graph.add_to_collection('target1', t1)
-    graph.add_to_collection('target2', t2)
+    graph.add_to_collection('target', t)
     graph.add_to_collection('kp', keep_prob)
-
-
-    #graph.add_to_collection('output', y1)
-    #graph.add_to_collection('input', x)
-    #graph.add_to_collection('target', t)
-    #graph.add_to_collection('kp', keep_prob)
 
     return graph
 

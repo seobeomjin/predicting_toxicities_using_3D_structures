@@ -10,7 +10,7 @@ from sklearn.utils import shuffle
 import tensorflow as tf
 
 from tfbio.data import Featurizer, make_grid, rotate
-import net_3 as net ## custom network for predicting ic50
+import net_4 as net ## custom network for predicting ic50
 
 import os.path
 
@@ -21,7 +21,7 @@ import seaborn as sns
 sns.set_style('white')
 sns.set_context('paper')
 sns.set_color_codes()
-color = {'training': 'b', 'validation': 'g', 'test': 'r'}
+color = {'training1': 'b', 'validation1': 'g', 'test1': 'r','training2': 'b', 'validation2': 'g', 'test2': 'r'}
 
 import time
 timestamp = time.strftime('%Y-%m-%dT%H:%M:%S')
@@ -105,13 +105,13 @@ print('atomic properties:', featurizer.FEATURE_NAMES)
 
 columns = {name: i for i, name in enumerate(featurizer.FEATURE_NAMES)}
 
+splitted_datasets = ['training1', 'training2','validation1','validation2', 'test1','test2']
+protein_list = ['andro','estro']
+
 ids = {}
 toxicity = {}
 coords = {}
 features = {}
-
-splitted_datasets = ['training1', 'training2','validation1','validation2', 'test1','test2']
-protein_list = ['andro','estro']
 
 splitted_ids = {}
 splitted_toxicity = {}
@@ -158,7 +158,7 @@ print('use sd as scaling factor')
 
 # for task2
 charges2 = []
-for feature_data in features['training2']:
+for feature_data in splitted_features['training2']:
     charges2.append(feature_data[..., columns['partialcharge']])
 
 charges2 = np.concatenate([c.flatten() for c in charges2])
@@ -183,7 +183,7 @@ def get_batch_1(dataset_name, indices, rotation=0):
     return x
 
 def get_batch_2(dataset_name, indices, rotation=0):
-    global splitted_coords, splitted_features, std1
+    global splitted_coords, splitted_features, std2
     x = []
     for i, idx in enumerate(indices):
         coords_idx = rotate(splitted_coords[dataset_name][idx], rotation)
@@ -198,7 +198,7 @@ def get_batch_2(dataset_name, indices, rotation=0):
 
 print('\n---- DATA ----\n')
 
-tmp = get_batch_1('training', range(min(50, len(features['training']))))
+tmp = get_batch_1('training1', range(min(50, len(spitted_features['training1']))))
 
 assert ((tmp[:, :, :, :, columns['molcode']] == 0.0).any()
         and (tmp[:, :, :, :, columns['molcode']] == 1.0).any()
@@ -262,9 +262,12 @@ print('regularization: dropout (keep %s) and L2 (lambda %s)'
       % (args.kp, args.lmbda))
 print('')
 print('learning rate', args.learning_rate)
-print(num_batches['training'], 'batches,', args.batch_size, 'examples each')
-print(num_batches['validation'], 'validation batches')
-print(num_batches['test'], 'test batches')
+print(num_batches['training1'], 'batches,', args.batch_size, 'examples each')
+print(num_batches['training2'], 'batches,', args.batch_size, 'examples each')
+print(num_batches['validation1'], 'validation batches')
+print(num_batches['validation2'], 'validation batches')
+print(num_batches['test1'], 'test batches')
+print(num_batches['test2'], 'test batches')
 print('')
 print(args.num_epochs, 'epochs, best', args.to_keep, 'saved')
 
@@ -285,10 +288,9 @@ val_writer = tf.summary.FileWriter(os.path.join(logdir, 'validation_set'),
 net_summaries, training_summaries = net.make_summaries_SB(graph)
 
 x = graph.get_tensor_by_name('input/structure:0') # <tf.Tensor 'input/structure:0' shape=(?, 21, 21, 21, 19) dtype=float32>
+t = graph.get_tensor_by_name('input/toxicity:0')
 y1 = graph.get_tensor_by_name('output/prediction1:0')
 y2 = graph.get_tensor_by_name('output/prediction2:0')
-t1 = graph.get_tensor_by_name('input/toxicity1:0')
-t2 = graph.get_tensor_by_name('input/toxicity2:0')
 keep_prob = graph.get_tensor_by_name('fully_connected/keep_prob:0')
 
 train1 = graph.get_tensor_by_name('training/train1:0')  
@@ -296,7 +298,7 @@ train2 = graph.get_tensor_by_name('training/train2:0')
 # graph.get_tensor_by_name => bring tensors from a certain variable scope by using name
 # this code is in the vriable_scope('training') in net_3.py 
 #    >>> train = optimizer.minimize(cost, global_step=global_step,name='train')
-#
+
 mse1 = graph.get_tensor_by_name('training/mse1:0')
 mse2 = graph.get_tensor_by_name('training/mse2:0')
 feature_importance = graph.get_tensor_by_name('net_properties/feature_importance:0')
@@ -324,8 +326,8 @@ def batches(set_name):
 err1 = float('inf')
 err2 = float('inf')
 
-train_sample = min(args.batch_size, len(features['training']))
-val_sample = min(args.batch_size, len(features['validation']))
+train_sample = min(args.batch_size, len(splitted_features['training1']))
+val_sample = min(args.batch_size, len(splitted_features['validation1']))
 #print(train_sample) >>>20
 #print(val_sample) >>>20
 
@@ -589,6 +591,7 @@ predictions.to_csv(prefix + '-predictions.csv', index=False)
 for set_name, tab in predictions.groupby('set'):
     grid = sns.jointplot('real', 'predicted', data=tab, color=color[set_name],
                          space=0.0, xlim=(0, 16), ylim=(0, 16),
+                         annot =True, 
                          annot_kws={'title': '%s set (rmse=%.3f)'
                                              % (set_name, rmse[set_name])})
 
