@@ -30,6 +30,23 @@ timestamp = time.strftime('%Y-%m-%dT%H:%M:%S')
 datasets = ['training', 'validation', 'test']
 
 
+def network_prefix(path):
+    """Check if all file required to restore the network exists."""
+
+    from glob import glob
+    dir_path, file_name = os.path.split(path)
+    path = os.path.join(os.path.abspath(dir_path), file_name)
+
+    for extension in ['index', 'meta', 'data*']:
+        file_name = '%s.%s' % (path, extension)
+
+        # use glob instead of os because we need to expand the wildcard
+        if len(glob(file_name)) == 0:
+            raise IOError('File %s does not exist.' % file_name)
+
+    return path
+
+
 def input_dir(path):
     """Check if input directory exists and contains all needed files"""
     global datasets
@@ -43,6 +60,16 @@ def input_dir(path):
             raise IOError('Incorrect input_dir specified:'
                           ' %s set file not found' % dataset_path)
     return path
+
+def string_bool(s):
+    s = s.lower()
+    if s in ['true', 't', '1', 'yes', 'y']:
+        return True
+    elif s in ['false', 'f', '0', 'no', 'n']:
+        return False
+    else:
+        raise IOError('%s cannot be interpreted as a boolean' % s)
+
 
 import argparse
 parser = argparse.ArgumentParser(
@@ -61,6 +88,14 @@ io_group.add_argument('--grid_spacing', '-g', default=1.0, type=float,
                       help='distance between grid points')
 io_group.add_argument('--max_dist', '-d', default=10.0, type=float,
                       help='max distance from complex center')
+#addition 
+io_group.add_argument('--network', '-n', type=network_prefix,
+                    default='results/exp4-2020-05-21T00:21:03-best',
+                    help='prefix for the files with the network'
+                    'Be default we use network trained on custom data as marked as best')
+io_group.add_argument('--verbose', '-v', type=string_bool,
+                    default=True,
+                    help='whether to print messages')
 
 arc_group = parser.add_argument_group('Netwrok architecture')
 arc_group.add_argument('--conv_patch', default=5, type=int,
@@ -224,7 +259,7 @@ print('baseline mse1: training1 =%s, validation1=%s' % (t1_baseline, v1_baseline
 # task 1
 t2_baseline = ((splitted_toxicity['training2'] - splitted_toxicity['training2'].mean()) ** 2.0).mean()
 v2_baseline = ((splitted_toxicity['validation2'] - splitted_toxicity['training2'].mean()) ** 2.0).mean()
-print('baseline mse1: training2 =%s, validation2=%s' % (t2_baseline, v2_baseline))
+print('baseline mse2: training2 =%s, validation2=%s' % (t2_baseline, v2_baseline))
 
 
 # NET PARAMS
@@ -262,12 +297,12 @@ print('regularization: dropout (keep %s) and L2 (lambda %s)'
       % (args.kp, args.lmbda))
 print('')
 print('learning rate', args.learning_rate)
-print(num_batches['training1'], 'batches,', args.batch_size, 'examples each')
-print(num_batches['training2'], 'batches,', args.batch_size, 'examples each')
-print(num_batches['validation1'], 'validation batches')
-print(num_batches['validation2'], 'validation batches')
-print(num_batches['test1'], 'test batches')
-print(num_batches['test2'], 'test batches')
+print(num_batches['training1'], 'training1 batches,', args.batch_size, 'examples each')
+print(num_batches['training2'], 'training2 batches,', args.batch_size, 'examples each')
+print(num_batches['validation1'], 'validation1 batches')
+print(num_batches['validation2'], 'validation2 batches')
+print(num_batches['test1'], 'test1 batches')
+print(num_batches['test2'], 'test2 batches')
 print('')
 print(args.num_epochs, 'epochs, best', args.to_keep, 'saved')
 
@@ -334,12 +369,21 @@ val_sample = min(args.batch_size, len(splitted_features['validation1']))
 #print(val_sample) >>>20
 
 
-
-
-
 print('\n---- TRAINING ----\n')
 with tf.Session(graph=graph) as session:
-    session.run(tf.global_variables_initializer())
+    old_saver = tf.train.import_meta_graph('%s.meta' % args.network,
+                                   clear_devices=True)
+    if old_saver is not None:
+        old_saver.restore(session, args.network)
+        if args.verbose:
+            print('--------------------------')
+            print('restored network from \n\t%s' % args.network)
+            print('--------------------------')
+    else:
+        session.run(tf.global_variables_initializer())
+        if args.verbose:
+            print('initialize global vairables')
+    #session.run(tf.global_variables_initializer())
 
     summary_imp = tf.Summary()
     feature_imp = session.run(feature_importance)
@@ -513,7 +557,7 @@ with tf.Session(graph=graph) as session:
         val_writer.add_summary(summary_mse, global_step.eval())
 
         # SAVE MODEL #
-        print('epoch: %s train1 error: %s, validation1 error: %s, train2 error: %s, validation2 error: %s'
+        print('epoch: %s \n train1 error: %s, validation1 error: %s \n train2 error: %s, validation2 error: %s'
               % (epoch, mse_t1, mse_v1, mse_t2, mse_v2))
 
         if mse_v1 <= err1:
@@ -567,11 +611,13 @@ with tf.Session(graph=graph) as session:
             )
             mse_dataset_1 += weight_1 * mse_batch_1
 
+        rmse[dataset+str(1)] = sqrt(mse_dataset_1)
         predictions.append(pd.DataFrame(data={'pdbid': splitted_ids[dataset+str(1)],
                                               'real': splitted_toxicity[dataset+str(1)][:, 0],
                                               'predicted': pred1[:, 0],
-                                              'set': dataset+str(1)}))
-        rmse[dataset+str(1)] = sqrt(mse_dataset_1)
+                                              'set': dataset+str(1),
+                                              'rmse': rmse[dataset+str(1)]}))
+        
 
         for bi, bj in batches(dataset+str(2)):
             weight_2 = (bj - bi) / ds_sizes[dataset+str(2)]
@@ -583,11 +629,13 @@ with tf.Session(graph=graph) as session:
             )
             mse_dataset_2 += weight_2 * mse_batch_2
 
+        rmse[dataset+str(2)] = sqrt(mse_dataset_2)
         predictions.append(pd.DataFrame(data={'pdbid': splitted_ids[dataset+str(2)],
                                               'real': splitted_toxicity[dataset+str(2)][:, 0],
                                               'predicted': pred2[:, 0],
-                                              'set': dataset+str(2)}))
-        rmse[dataset+str(2)] = sqrt(mse_dataset_2)
+                                              'set': dataset+str(2),
+                                              'rmse': rmse[dataset+str(2)]}))
+        
 
 
 predictions = pd.concat(predictions, ignore_index=True)
@@ -595,8 +643,7 @@ predictions.to_csv(prefix + '-predictions.csv', index=False)
 
 for set_name, tab in predictions.groupby('set'):
     grid = sns.jointplot('real', 'predicted', data=tab, color=color[set_name],
-                         space=0.0, xlim=(0, 16), ylim=(0, 16),
-                         annot =True, 
+                         space=0.0, xlim=(0, 16), ylim=(0, 16), 
                          annot_kws={'title': '%s set (rmse=%.3f)'
                                              % (set_name, rmse[set_name])})
 

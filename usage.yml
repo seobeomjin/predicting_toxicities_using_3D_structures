@@ -8,3 +8,6 @@ custom_dataset:
     - python training_3.py -i dataset/train_valid_test_data/exp3/ -o dataset/results/exp3_ar_er/"exp3" --num_epochs 50 
 
     ### version 2 > was network that add FC layers for predicting pIC50 to based model  (but need more work)
+
+    ### version 4 > 
+    - python training_4.py -i dataset/train_valid_test_data/exp3/ -o dataset/results/exp4_multitask/"exp4_(2)" -n dataset/results/exp4_multitask/exp4-2020-05-21T00:21:03-best --num_epochs 1
